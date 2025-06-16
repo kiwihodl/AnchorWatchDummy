@@ -1,6 +1,5 @@
 import { useSession, signIn, signOut } from "next-auth/react";
 import { useState, useEffect } from "react";
-import { api } from "@/utils/api";
 import { NextPage } from "next";
 import Head from "next/head";
 import Image from "next/image";
@@ -11,6 +10,7 @@ const Home: NextPage = () => {
   const [error, setError] = useState("");
   const [emailSubmitted, setEmailSubmitted] = useState(false);
   const [resendCooldown, setResendCooldown] = useState(0);
+  const [selectedTime, setSelectedTime] = useState("1 D");
 
   useEffect(() => {
     if (resendCooldown > 0) {
@@ -58,8 +58,6 @@ const Home: NextPage = () => {
     }
   };
 
-  const hello = api.hello.useQuery();
-
   if (status === "loading") {
     return (
       <div className="flex min-h-screen items-center justify-center bg-gray-100">
@@ -72,53 +70,97 @@ const Home: NextPage = () => {
 
   if (sessionData) {
     return (
-      <div className="flex min-h-screen items-center justify-center">
-        <div className="h-[623px] w-[1050px]">
-          {/* Top Bar */}
-          <div className="relative flex h-[48px] w-full items-center border-2 border-[#B6C6C6] bg-white pl-[15px] shadow-md">
-            <div className="flex-1 text-center">
-              <div className="inline-flex items-center gap-x-[4px] align-middle">
-                <Image
-                  src="/sign-in-images/complete-step.png"
-                  alt="Step 1 complete"
-                  width={16}
-                  height={16}
-                />
-                <div
-                  style={{
-                    height: "1px",
-                    width: "24px",
-                    backgroundColor: "#000F10",
-                  }}
-                ></div>
-                <Image
-                  src="/sign-in-images/empty-step.png"
-                  alt="Step 2"
-                  width={16}
-                  height={16}
-                />
-              </div>
-            </div>
-            <div className="pr-[15px]">
-              <Image
-                src="/sign-in-images/cross.png"
-                alt="Close"
-                width={20}
-                height={20}
-              />
-            </div>
-          </div>
-
-          {/* Keep existing content */}
-          <div className="flex h-[575px] w-full flex-col items-center justify-center">
-            <p>Signed in as {sessionData.user?.email}</p>
-            <p>{hello.data ? hello.data.greeting : "Loading tRPC query..."}</p>
+      <div className="flex h-screen bg-white">
+        {/* Sidebar */}
+        <div
+          className="flex h-full flex-col items-center justify-between flex-shrink-0"
+          style={{
+            width: "420px",
+            padding: "16px 16px 21px 16px",
+            backgroundColor: "#2D3748", // charcoal
+            gap: "15px",
+          }}
+        >
+          <button
+            className="flex items-center rounded-[4px] border border-[#ACC6C5] bg-white"
+            style={{
+              width: "386px",
+              height: "60px",
+              padding: "11px 20px",
+              gap: "20px",
+            }}
+          >
+            <Image
+              src="/sign-in-images/Bitcoin-logo.svg"
+              alt="Bitcoin Logo"
+              width={24}
+              height={24}
+            />
+            <span className="font-mono text-[20px] font-normal leading-[24px] text-[#00474B] text-center">
+              ADD BTC ADDRESS
+            </span>
+          </button>
+          <div className="flex flex-col items-center">
             <button
               onClick={() => signOut()}
               className="mt-4 rounded bg-red-500 px-4 py-2 text-white"
             >
               Sign out
             </button>
+          </div>
+        </div>
+        {/* Main Content */}
+        <div className="flex w-full flex-grow flex-col bg-gray-50">
+          <div
+            style={{ margin: "24px", gap: "24px" }}
+            className="flex h-[calc(100%-48px)] w-[calc(100%-48px)] flex-col"
+          >
+            {/* Holdings Section */}
+            <div className="flex h-[calc(50%-12px)] flex-col rounded-[4px] border border-[#CDD] bg-white">
+              <div className="flex h-[50px] shrink-0 items-center gap-[15px] rounded-t-[4px] border-b border-[#CDD] bg-[#F0F1F1] px-[14px] py-[10px]">
+                <h1
+                  className="m-0 text-[20px] font-medium leading-[24px] text-[#001E20]"
+                  style={{ fontFamily: "'DM Mono', monospace" }}
+                >
+                  HOLDINGS
+                </h1>
+              </div>
+              <div className="flex h-[50px] shrink-0 items-center justify-start gap-[15px] border-b border-[#CDD] bg-white px-[14px] py-[10px]">
+                {["1 D", "1 WK", "1 MO", "1 YR"].map((time) => (
+                  <button
+                    key={time}
+                    onClick={() => setSelectedTime(time)}
+                    style={{ width: "74px", height: "33px" }}
+                    className={`flex items-center justify-center rounded-[4px] border-none bg-transparent font-mono text-[14px] font-normal leading-[16.8px] ${
+                      selectedTime === time
+                        ? "text-[#001E20]"
+                        : "text-[#0E656B]"
+                    }`}
+                  >
+                    {time}
+                  </button>
+                ))}
+              </div>
+              <div className="flex w-full flex-grow flex-col items-center justify-center gap-[10px]">
+                <p
+                  className="text-center text-[20px] font-medium leading-[24px] text-[#001E20]"
+                  style={{ fontFamily: "'DM Mono', monospace" }}
+                >
+                  Add a BTC address to see holdings
+                </p>
+              </div>
+            </div>
+            {/* Transactions Section */}
+            <div className="flex h-[calc(50%-12px)] flex-col rounded-[4px] border border-[#CDD] bg-white">
+              <div className="flex h-[50px] shrink-0 items-center gap-[15px] rounded-t-[4px] border-b border-[#CDD] bg-[#F0F1F1] px-[14px] py-[10px]">
+                <h1
+                  className="m-0 text-[20px] font-medium leading-[24px] text-[#001E20]"
+                  style={{ fontFamily: "'DM Mono', monospace" }}
+                >
+                  TRANSACTIONS
+                </h1>
+              </div>
+            </div>
           </div>
         </div>
       </div>
@@ -301,7 +343,7 @@ const Home: NextPage = () => {
                       />
                       {error && (
                         <p
-                          style={{ margin: 0 }}
+                          style={{ marginTop: "4px" }}
                           className="font-sans text-[16px] font-normal not-italic leading-[19.2px] tracking-[-0.08px] text-[#F50000]"
                         >
                           {error}
