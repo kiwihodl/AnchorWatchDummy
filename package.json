@@ -6,22 +6,41 @@
     "dev": "next dev",
     "build": "next build",
     "start": "next start",
-    "lint": "next lint"
+    "lint": "next lint",
+    "db:generate": "drizzle-kit generate",
+    "db:migrate": "node migrate.mjs"
   },
   "dependencies": {
+    "@auth/drizzle-adapter": "^1.9.1",
+    "@t3-oss/env-nextjs": "^0.13.8",
+    "@trpc/client": "^11.4.1",
+    "@trpc/next": "^11.4.1",
+    "@trpc/react-query": "^11.4.1",
+    "@trpc/server": "^11.4.1",
+    "dotenv": "^16.5.0",
+    "drizzle-orm": "^0.44.2",
+    "next": "15.3.3",
+    "next-auth": "^4.24.11",
+    "nodemailer": "^6.10.1",
+    "pg": "^8.16.0",
+    "postgres": "^3.4.7",
     "react": "^19.0.0",
     "react-dom": "^19.0.0",
-    "next": "15.3.3"
+    "superjson": "^2.2.2",
+    "zod": "^3.25.64"
   },
   "devDependencies": {
-    "typescript": "^5",
+    "@eslint/eslintrc": "^3",
+    "@tailwindcss/postcss": "^4",
     "@types/node": "^20",
+    "@types/nodemailer": "^6.4.17",
+    "@types/pg": "^8.15.4",
     "@types/react": "^19",
     "@types/react-dom": "^19",
-    "@tailwindcss/postcss": "^4",
-    "tailwindcss": "^4",
+    "drizzle-kit": "^0.31.1",
     "eslint": "^9",
     "eslint-config-next": "15.3.3",
-    "@eslint/eslintrc": "^3"
+    "tailwindcss": "^4",
+    "typescript": "^5"
   }
 }
