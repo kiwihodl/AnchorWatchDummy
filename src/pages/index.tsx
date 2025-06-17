@@ -1,4 +1,4 @@
-import { useSession, signIn, signOut } from "next-auth/react";
+import { useSession, signIn } from "next-auth/react";
 import { useState, useEffect } from "react";
 import { NextPage } from "next";
 import Head from "next/head";
@@ -11,6 +11,8 @@ const Home: NextPage = () => {
   const [emailSubmitted, setEmailSubmitted] = useState(false);
   const [resendCooldown, setResendCooldown] = useState(0);
   const [selectedTime, setSelectedTime] = useState("1 D");
+  const [isAddAddressPopupOpen, setIsAddAddressPopupOpen] = useState(false);
+  const [btcAddress, setBtcAddress] = useState("");
 
   useEffect(() => {
     if (resendCooldown > 0) {
@@ -69,96 +71,375 @@ const Home: NextPage = () => {
   }
 
   if (sessionData) {
-    return (
-      <div className="flex h-screen bg-white">
-        {/* Sidebar */}
-        <div
-          className="flex h-full flex-col items-center justify-between flex-shrink-0"
-          style={{
-            width: "420px",
-            padding: "16px 16px 21px 16px",
-            backgroundColor: "#2D3748", // charcoal
-            gap: "15px",
-          }}
-        >
-          <button
-            className="flex items-center rounded-[4px] border border-[#ACC6C5] bg-white"
-            style={{
-              width: "386px",
-              height: "60px",
-              padding: "11px 20px",
-              gap: "20px",
-            }}
-          >
-            <Image
-              src="/sign-in-images/Bitcoin-logo.svg"
-              alt="Bitcoin Logo"
-              width={24}
-              height={24}
-            />
-            <span className="font-mono text-[20px] font-normal leading-[24px] text-[#00474B] text-center">
-              ADD BTC ADDRESS
-            </span>
-          </button>
-          <div className="flex flex-col items-center">
-            <button
-              onClick={() => signOut()}
-              className="mt-4 rounded bg-red-500 px-4 py-2 text-white"
-            >
-              Sign out
-            </button>
-          </div>
-        </div>
-        {/* Main Content */}
-        <div className="flex w-full flex-grow flex-col bg-gray-50">
-          <div
-            style={{ margin: "24px", gap: "24px" }}
-            className="flex h-[calc(100%-48px)] w-[calc(100%-48px)] flex-col"
-          >
-            {/* Holdings Section */}
-            <div className="flex h-[calc(50%-12px)] flex-col rounded-[4px] border border-[#CDD] bg-white">
-              <div className="flex h-[50px] shrink-0 items-center gap-[15px] rounded-t-[4px] border-b border-[#CDD] bg-[#F0F1F1] px-[14px] py-[10px]">
-                <h1
-                  className="m-0 text-[20px] font-medium leading-[24px] text-[#001E20]"
-                  style={{ fontFamily: "'DM Mono', monospace" }}
-                >
-                  HOLDINGS
-                </h1>
+    if (isAddAddressPopupOpen) {
+      return (
+        <div className="flex min-h-screen items-center justify-center bg-[#F8F8F8]">
+          <div className="flex h-[623px] w-[1050px] flex-col bg-white shadow-lg">
+            {/* Top Bar */}
+            <div className="relative flex h-[44px] min-h-[44px] w-full items-center justify-between border-2 border-solid border-[#B6C6C6] bg-white pl-[15px] pr-[15px]">
+              <div className="flex">
+                <Image
+                  src="/sign-in-images/Back-arrow.svg"
+                  alt="Back"
+                  width={20}
+                  height={20}
+                  onClick={() => setIsAddAddressPopupOpen(false)}
+                  style={{ cursor: "pointer", display: "block" }}
+                />
               </div>
-              <div className="flex h-[50px] shrink-0 items-center justify-start gap-[15px] border-b border-[#CDD] bg-white px-[14px] py-[10px]">
-                {["1 D", "1 WK", "1 MO", "1 YR"].map((time) => (
-                  <button
-                    key={time}
-                    onClick={() => setSelectedTime(time)}
-                    style={{ width: "74px", height: "33px" }}
-                    className={`flex items-center justify-center rounded-[4px] border-none bg-transparent font-mono text-[14px] font-normal leading-[16.8px] ${
-                      selectedTime === time
-                        ? "text-[#001E20]"
-                        : "text-[#0E656B]"
-                    }`}
-                  >
-                    {time}
-                  </button>
-                ))}
+              <div className="absolute left-1/2 top-1/2 flex -translate-x-1/2 -translate-y-1/2 transform items-center gap-x-[4px]">
+                <Image
+                  src="/sign-in-images/complete-step.png"
+                  alt="Step 1 complete"
+                  width={16}
+                  height={16}
+                />
+                <div
+                  style={{
+                    height: "1px",
+                    width: "24px",
+                    backgroundColor: "#000F10",
+                  }}
+                ></div>
+                <Image
+                  src="/sign-in-images/incomplete-step.svg"
+                  alt="Step 2 incomplete"
+                  width={16}
+                  height={16}
+                />
               </div>
-              <div className="flex w-full flex-grow flex-col items-center justify-center gap-[10px]">
-                <p
-                  className="text-center text-[20px] font-medium leading-[24px] text-[#001E20]"
-                  style={{ fontFamily: "'DM Mono', monospace" }}
-                >
-                  Add a BTC address to see holdings
-                </p>
+              <div className="flex h-[44px] items-center">
+                <Image
+                  src="/sign-in-images/cross.png"
+                  alt="Close"
+                  width={20}
+                  height={20}
+                  onClick={() => setIsAddAddressPopupOpen(false)}
+                  style={{ cursor: "pointer" }}
+                />
               </div>
             </div>
-            {/* Transactions Section */}
-            <div className="flex h-[calc(50%-12px)] flex-col rounded-[4px] border border-[#CDD] bg-white">
-              <div className="flex h-[50px] shrink-0 items-center gap-[15px] rounded-t-[4px] border-b border-[#CDD] bg-[#F0F1F1] px-[14px] py-[10px]">
-                <h1
-                  className="m-0 text-[20px] font-medium leading-[24px] text-[#001E20]"
-                  style={{ fontFamily: "'DM Mono', monospace" }}
+
+            {/* Title Bar */}
+            <div className="flex h-[50px] w-full flex-col items-start justify-center gap-6 border-l-[2px] border-r-[2px] border-[#B6C6C6] bg-[#F0F1F1] py-[12px] pl-[24px] pr-[32px]">
+              <h2 className="font-mono text-[20px] font-medium leading-[24px] tracking-normal text-[#001E20]">
+                ADD BTC ADDRESS
+              </h2>
+            </div>
+
+            {/* Main Content */}
+            <div className="flex flex-grow flex-row">
+              {/* Left Side */}
+              <div className="flex h-full w-[525px] flex-col items-start justify-start border-2 border-solid border-[#B6C6C6] bg-white p-[24px] pb-[26px]">
+                <p className="font-sans text-[20px] font-medium not-italic leading-[24px] tracking-[-0.1px] text-[#001E20]">
+                  Enter the address below to add to your vault
+                </p>
+                <div className="mt-6 w-full">
+                  <label
+                    htmlFor="btcAddress"
+                    className="font-mono text-[18px] font-medium leading-[21.6px] text-[#001E20]"
+                  >
+                    ADDRESS
+                  </label>
+                  <input
+                    id="btcAddress"
+                    type="text"
+                    value={btcAddress}
+                    onChange={(e) => setBtcAddress(e.target.value)}
+                    placeholder="Enter address here"
+                    className="mt-[4px] h-[51px] w-full rounded-[4px] border border-[#B6C6C6] bg-[#F8F8F8] p-4 font-sans text-[18px] leading-[21.6px]"
+                  />
+                  <p className="mt-[4px] font-sans text-[16px] font-normal leading-[19.2px] tracking-[-0.08px] text-[#00474B]">
+                    46 characters maximum
+                  </p>
+                </div>
+                <div className="mt-auto flex w-full items-center justify-between">
+                  <div className="flex items-center gap-[10px]">
+                    <Image
+                      src="/sign-in-images/Help-popout.svg"
+                      alt="Help"
+                      width={20}
+                      height={20}
+                    />
+                    <span className="font-sans text-[14px] font-medium leading-[16.8px] text-[#001E20]">
+                      Need help?
+                    </span>
+                  </div>
+                  <button
+                    disabled={!btcAddress}
+                    className={`flex h-[51px] w-[137px] items-center justify-center rounded-[4px] px-9 py-3 text-center font-mono text-[18px] font-normal not-italic leading-[21.6px] ${
+                      !btcAddress
+                        ? "cursor-not-allowed bg-[#EFF4F4] text-gray-500"
+                        : "bg-[#147C83] text-[#F8F8F8]"
+                    }`}
+                  >
+                    Next
+                  </button>
+                </div>
+              </div>
+
+              {/* Right Side */}
+              <div className="flex h-[529px] w-[525px] items-center justify-center border-y-2 border-r-2 border-solid border-[#B6C6C6] bg-white">
+                <Image
+                  src="/sign-in-images/Address_popup.png"
+                  alt="Address Popup"
+                  width={477}
+                  height={477}
+                />
+              </div>
+            </div>
+          </div>
+        </div>
+      );
+    }
+
+    return (
+      <div className="flex h-screen flex-col bg-white">
+        {/* Top Bar */}
+        <div className="flex h-[80px] items-center">
+          <div className="flex h-[46px] items-center gap-[32px] px-[40px] my-[17px]">
+            <div className="flex h-[32px] w-[32px] items-center justify-center shadow-[0px_4px_4px_0px_rgba(0,0,0,0.25)]">
+              <Image
+                src="/sign-in-images/AnchorWatch-logo2.svg"
+                alt="AnchorWatch Logo"
+                width={32}
+                height={32}
+              />
+            </div>
+            <div className="flex h-[50px] items-center justify-center px-[40px] py-[12px]">
+              <span
+                style={{ fontFamily: "'DM Mono'" }}
+                className="text-center text-[20px] font-[500] not-italic leading-[24px] text-[#001E20]"
+              >
+                DASHBOARD
+              </span>
+            </div>
+          </div>
+        </div>
+        {/* Bitcoin Address and Balance Bar */}
+        <div
+          className="flex h-[59px] items-center justify-between border-y border-[#CDD]"
+          style={{ padding: "10px 16px 10px 20px" }}
+        >
+          {/* Bitcoin Address - Initially Empty */}
+          <div
+            style={{ fontFamily: "'DM Mono'", letterSpacing: "1.6px" }}
+            className="text-[32px] font-[500] leading-[115%] text-[#001E20]"
+          >
+            {/* Will be populated with BTC address */}
+          </div>
+          {/* Balance Information - Initially Empty */}
+          <div className="flex h-[77px] w-[599.952px] items-center justify-end gap-[20px] px-[12px]">
+            {/* Bitcoin Balance */}
+            <div className="flex items-center gap-[9px]">
+              {/* Bitcoin logo and amount will be shown when we have values */}
+              <span
+                style={{ fontFamily: "'DM Mono'", letterSpacing: "1.4px" }}
+                className="text-[28px] font-[500] leading-[115%] text-[#001E20]"
+              >
+                {/* Will be populated with BTC amount */}
+              </span>
+            </div>
+            {/* USD Balance */}
+            <div
+              style={{ fontFamily: "'DM Mono'" }}
+              className="text-[24px] font-normal leading-[28.8px] text-[#00474B]"
+            >
+              {/* Will be populated with USD value */}
+            </div>
+          </div>
+        </div>
+        {/* Third Bar - Quick Actions */}
+        <div className="flex">
+          {/* Left Section - Quick Actions */}
+          <div className="box-border flex h-[50px] w-[419px] flex-col items-start justify-center border-b border-[#CDD] bg-[#F0F1F1] px-[20px] py-[13px]">
+            <span
+              style={{ fontFamily: "'DM Mono'" }}
+              className="text-[20px] font-[500] leading-[24px] text-[#001E20]"
+            >
+              QUICK ACTIONS
+            </span>
+          </div>
+          {/* Right Section */}
+          <div
+            className="box-border flex h-[50px] flex-1 items-center gap-[10px] border-b border-l border-[#CDD] bg-[#F0F1F1] px-[20px] py-[10px]"
+            style={{ paddingRight: "16px" }}
+          ></div>
+        </div>
+        <div className="flex flex-1">
+          {/* Left Sidebar */}
+          <div
+            className="flex h-full w-[420px] flex-col border-r border-[#CDD] bg-[#F8F8F8] p-[16px] pt-0"
+            style={{
+              paddingBottom: "21px",
+              paddingLeft: "16px",
+              paddingRight: "16px",
+            }}
+          >
+            {/* Add BTC Address Button */}
+            <div className="w-full" style={{ paddingTop: "15px" }}>
+              <button
+                onClick={() => setIsAddAddressPopupOpen(true)}
+                className="flex items-center rounded-[4px] border border-[#ACC6C5] bg-white"
+                style={{
+                  width: "387px",
+                  height: "60px",
+                  padding: "11px 20px",
+                  gap: "20px",
+                }}
+              >
+                <Image
+                  src="/sign-in-images/Bitcoin-logo.svg"
+                  alt="Bitcoin Logo"
+                  width={24}
+                  height={24}
+                />
+                <span className="text-center font-mono text-[20px] font-normal leading-[24px] text-[#00474B]">
+                  ADD BTC ADDRESS
+                </span>
+              </button>
+            </div>
+            <div>
+              <Image
+                src="/sign-in-images/Sidebar-vector-line.png"
+                alt="Vector"
+                width={387}
+                height={1}
+                className="my-[15px]"
+                style={{ alignSelf: "stretch" }}
+              />
+            </div>
+          </div>
+          {/* Main Content */}
+          <div className="flex w-full flex-grow flex-col bg-[#FFFFFF]">
+            <div
+              style={{ margin: "24px", gap: "24px" }}
+              className="flex h-[calc(100%-48px)] w-[calc(100%-48px)] flex-col"
+            >
+              {/* Holdings Section */}
+              <div className="flex h-[calc(50%-12px)] flex-col rounded-[4px] border border-[#CDD] bg-white">
+                <div className="box-border flex h-[50px] shrink-0 items-center gap-[15px] rounded-t-[4px] border-b border-[#CDD] bg-[#F0F1F1] px-[14px] py-[10px]">
+                  <h1
+                    className="m-0 text-[20px] font-medium leading-[24px] text-[#001E20]"
+                    style={{ fontFamily: "'DM Mono', monospace" }}
+                  >
+                    HOLDINGS
+                  </h1>
+                </div>
+                <div className="box-border flex h-[50px] shrink-0 items-center justify-start gap-[15px] border-b border-[#CDD] bg-white px-[14px] py-[10px]">
+                  {["1 D", "1 WK", "1 MO", "1 YR"].map((time) => (
+                    <button
+                      key={time}
+                      onClick={() => setSelectedTime(time)}
+                      style={{ width: "74px", height: "33px" }}
+                      className={`flex items-center justify-center rounded-[4px] border-none bg-transparent font-mono text-[14px] font-normal leading-[16.8px] ${
+                        selectedTime === time
+                          ? "text-[#001E20]"
+                          : "text-[#0E656B]"
+                      }`}
+                    >
+                      {time}
+                    </button>
+                  ))}
+                </div>
+                <div className="flex w-full flex-grow flex-col items-center justify-center gap-[10px]">
+                  <p
+                    className="text-center text-[20px] font-medium leading-[24px] text-[#001E20]"
+                    style={{ fontFamily: "'DM Mono', monospace" }}
+                  >
+                    Add a BTC address to see holdings
+                  </p>
+                </div>
+              </div>
+              {/* Transactions Section */}
+              <div className="flex h-[calc(50%-12px)] flex-col rounded-[4px] border border-[#CDD] bg-white">
+                <div className="box-border flex h-[50px] shrink-0 items-center gap-[15px] rounded-t-[4px] border-b border-[#CDD] bg-[#F0F1F1] px-[14px] py-[10px]">
+                  <h1
+                    className="m-0 text-[20px] font-medium leading-[24px] text-[#001E20]"
+                    style={{ fontFamily: "'DM Mono', monospace" }}
+                  >
+                    TRANSACTIONS
+                  </h1>
+                </div>
+                {/* Transaction Filter Bar */}
+                <div
+                  className="box-border flex h-[50px] items-center justify-between border-y border-[#CDD] bg-[#F8F8F8] px-[14px] py-[10px]"
+                  style={{ paddingRight: "39px" }}
                 >
-                  TRANSACTIONS
-                </h1>
+                  {/* Filter Buttons */}
+                  <div className="flex items-center gap-[15px]">
+                    {["ALL", "SENT", "RECEIVED"].map((filter) => (
+                      <button
+                        key={filter}
+                        className={`border-none bg-transparent font-mono text-[14px] font-normal leading-[16.8px] ${
+                          filter === "ALL" ? "text-[#001E20]" : "text-[#0E656B]"
+                        }`}
+                      >
+                        {filter}
+                      </button>
+                    ))}
+                  </div>
+                  {/* View All Button */}
+                  <button className="flex h-[33px] items-center justify-center gap-[10px] rounded-[4px] border border-[#0E656B] px-[20px] font-mono text-[14px] font-normal leading-[16.8px] text-[#0E656B] bg-transparent">
+                    VIEW ALL
+                  </button>
+                </div>
+                {/* Transaction Headers Bar */}
+                <div className="box-border flex h-[50px] items-center justify-between border-b border-[#CDD] bg-white pl-[14px]">
+                  <span
+                    className="font-mono text-[18px] font-[500] leading-[21.6px] text-[#001E20]"
+                    style={{ fontFamily: "'DM Mono'" }}
+                  >
+                    TYPE
+                  </span>
+                  <span
+                    className="font-mono text-[18px] font-[500] leading-[21.6px] text-[#001E20]"
+                    style={{ fontFamily: "'DM Mono'" }}
+                  >
+                    DATE
+                  </span>
+                  <span
+                    className="font-mono text-[18px] font-[500] leading-[21.6px] text-[#001E20]"
+                    style={{ fontFamily: "'DM Mono'" }}
+                  >
+                    LABEL
+                  </span>
+                  <span
+                    className="font-mono text-[18px] font-[500] leading-[21.6px] text-[#001E20]"
+                    style={{ fontFamily: "'DM Mono'" }}
+                  >
+                    AMOUNT (BTC)
+                  </span>
+                  <span
+                    className="font-mono text-[18px] font-[500] leading-[21.6px] text-[#001E20]"
+                    style={{ fontFamily: "'DM Mono'" }}
+                  >
+                    BALANCE (BTC)
+                  </span>
+                  <div className="flex items-center self-stretch p-[12px] gap-[10px] bg-[#F0F1F1]">
+                    <span
+                      className="font-mono text-[18px] font-[500] leading-[21.6px] text-[#001E20]"
+                      style={{ fontFamily: "'DM Mono'" }}
+                    >
+                      STATUS
+                    </span>
+                    <Image
+                      src="/sign-in-images/Transactions-status-toggle.svg"
+                      alt="Status Toggle"
+                      width={16}
+                      height={16}
+                    />
+                  </div>
+                </div>
+                {/* Empty Transactions Message */}
+                <div className="flex flex-1 items-center justify-center">
+                  <p
+                    style={{ fontFamily: "'DM Mono'" }}
+                    className="flex-1 text-center text-[20px] font-[500] not-italic leading-[24px] text-[#001E20]"
+                  >
+                    No transactions to show
+                  </p>
+                </div>
               </div>
             </div>
           </div>
