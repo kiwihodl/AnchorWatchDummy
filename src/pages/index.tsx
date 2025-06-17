@@ -74,9 +74,9 @@ const Home: NextPage = () => {
     if (isAddAddressPopupOpen) {
       return (
         <div className="flex min-h-screen items-center justify-center bg-[#F8F8F8]">
-          <div className="flex h-[623px] w-[1050px] flex-col bg-white shadow-lg">
+          <div className="flex h-[627px] w-[1050px] flex-col bg-white shadow-lg">
             {/* Top Bar */}
-            <div className="relative flex h-[44px] min-h-[44px] w-full items-center justify-between border-2 border-solid border-[#B6C6C6] bg-white pl-[15px] pr-[15px]">
+            <div className="box-border relative flex h-[48px] min-h-[48px] w-full items-center justify-between border-2 border-solid border-[#B6C6C6] bg-white pl-[15px] pr-[15px]">
               <div className="flex">
                 <Image
                   src="/sign-in-images/Back-arrow.svg"
@@ -102,7 +102,7 @@ const Home: NextPage = () => {
                   }}
                 ></div>
                 <Image
-                  src="/sign-in-images/incomplete-step.svg"
+                  src="/sign-in-images/empty-step.png"
                   alt="Step 2 incomplete"
                   width={16}
                   height={16}
@@ -121,8 +121,11 @@ const Home: NextPage = () => {
             </div>
 
             {/* Title Bar */}
-            <div className="flex h-[50px] w-full flex-col items-start justify-center gap-6 border-l-[2px] border-r-[2px] border-[#B6C6C6] bg-[#F0F1F1] py-[12px] pl-[24px] pr-[32px]">
-              <h2 className="font-mono text-[20px] font-medium leading-[24px] tracking-normal text-[#001E20]">
+            <div className="box-border flex h-[50px] w-full flex-col items-start justify-center gap-6 border-l-[2px] border-r-[2px] border-[#B6C6C6] bg-[#F0F1F1] py-[12px] pl-[24px] pr-[32px]">
+              <h2
+                className="font-mono text-[20px] font-medium leading-[24px] tracking-normal text-[#001E20]"
+                style={{ fontFamily: "'DM Mono'" }}
+              >
                 ADD BTC ADDRESS
               </h2>
             </div>
@@ -130,14 +133,18 @@ const Home: NextPage = () => {
             {/* Main Content */}
             <div className="flex flex-grow flex-row">
               {/* Left Side */}
-              <div className="flex h-full w-[525px] flex-col items-start justify-start border-2 border-solid border-[#B6C6C6] bg-white p-[24px] pb-[26px]">
-                <p className="font-sans text-[20px] font-medium not-italic leading-[24px] tracking-[-0.1px] text-[#001E20]">
+              <div className="box-border flex h-[525px] w-[525px] flex-col items-start justify-start border-l-2 border-y-2 border-r-0 border-solid border-[#B6C6C6] bg-white p-[24px] pb-[26px]">
+                <p
+                  className="font-sans text-[20px] font-medium not-italic leading-[24px] tracking-[-0.1px] text-[#001E20]"
+                  style={{ fontFamily: "'DM Sans'" }}
+                >
                   Enter the address below to add to your vault
                 </p>
                 <div className="mt-6 w-full">
                   <label
                     htmlFor="btcAddress"
-                    className="font-mono text-[18px] font-medium leading-[21.6px] text-[#001E20]"
+                    className="font-sans text-[18px] font-medium leading-[21.6px] tracking-[-0.09px] text-[#001E20]"
+                    style={{ fontFamily: "'DM Sans'" }}
                   >
                     ADDRESS
                   </label>
@@ -147,23 +154,23 @@ const Home: NextPage = () => {
                     value={btcAddress}
                     onChange={(e) => setBtcAddress(e.target.value)}
                     placeholder="Enter address here"
-                    className="mt-[4px] h-[51px] w-full rounded-[4px] border border-[#B6C6C6] bg-[#F8F8F8] p-4 font-sans text-[18px] leading-[21.6px]"
+                    className="box-border mt-[4px] h-[50px] w-full self-stretch rounded-[4px] border border-solid border-[#F0F1F1] bg-[#F0F1F1] px-[12px] font-sans text-[18px] leading-[21.6px] tracking-[-0.09px] text-[#001E20]"
                   />
                   <p className="mt-[4px] font-sans text-[16px] font-normal leading-[19.2px] tracking-[-0.08px] text-[#00474B]">
                     46 characters maximum
                   </p>
                 </div>
-                <div className="mt-auto flex w-full items-center justify-between">
+                <div className="mt-auto flex w-full flex-col items-start gap-[16px]">
                   <div className="flex items-center gap-[10px]">
+                    <span className="font-sans text-[14px] font-medium leading-[16.8px] text-[#001E20]">
+                      Need help?
+                    </span>
                     <Image
-                      src="/sign-in-images/Help-popout.svg"
+                      src="/sign-in-images/popout-help.svg"
                       alt="Help"
                       width={20}
                       height={20}
                     />
-                    <span className="font-sans text-[14px] font-medium leading-[16.8px] text-[#001E20]">
-                      Need help?
-                    </span>
                   </div>
                   <button
                     disabled={!btcAddress}
@@ -179,12 +186,13 @@ const Home: NextPage = () => {
               </div>
 
               {/* Right Side */}
-              <div className="flex h-[529px] w-[525px] items-center justify-center border-y-2 border-r-2 border-solid border-[#B6C6C6] bg-white">
+              <div className="relative box-border h-[525px] w-[525px] bg-white">
                 <Image
                   src="/sign-in-images/Address_popup.png"
                   alt="Address Popup"
-                  width={477}
-                  height={477}
+                  layout="fill"
+                  objectFit="cover"
+                  className="border-none"
                 />
               </div>
             </div>
