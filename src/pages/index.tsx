@@ -49,7 +49,7 @@ interface ChartDataPoint {
 interface ProcessedTransaction {
   txid: string;
   type: "SEND" | "RECEIVE";
-  date: Date;
+  date: Date | null;
   amount: number;
   balance: number;
   status: "Completed" | "Pending";
@@ -217,9 +217,10 @@ const Home: NextPage = () => {
       });
 
       // Process transactions for the transaction list
-      const allTxsSorted = txs.sort(
+      const allTxsSorted = [...txs].sort(
         (a, b) =>
-          (b.status.block_time ?? Infinity) - (a.status.block_time ?? Infinity)
+          (b.status.block_time ?? Number.MAX_SAFE_INTEGER) -
+          (a.status.block_time ?? Number.MAX_SAFE_INTEGER)
       );
       const finalBalanceSats = utxos.reduce((sum, utxo) => sum + utxo.value, 0);
       let runningBalanceSats = finalBalanceSats;
@@ -238,15 +239,22 @@ const Home: NextPage = () => {
           0
         );
         const netAmount = valueOut - valueIn;
-        const balanceAfterTx = runningBalanceSats;
+
+        let balanceAfterTx;
         if (tx.status.confirmed) {
+          balanceAfterTx = runningBalanceSats;
           runningBalanceSats -= netAmount;
+        } else {
+          // For pending, show what the balance would be
+          balanceAfterTx = finalBalanceSats + netAmount;
         }
 
         return {
           txid: tx.txid,
           type: netAmount > 0 ? "RECEIVE" : "SEND",
-          date: new Date(tx.status.block_time * 1000),
+          date: tx.status.confirmed
+            ? new Date(tx.status.block_time * 1000)
+            : null,
           amount: netAmount / 1_000_00_000,
           balance: balanceAfterTx / 1_000_00_000,
           status: tx.status.confirmed ? "Completed" : "Pending",
@@ -278,10 +286,18 @@ const Home: NextPage = () => {
 
     const sorted = [...filtered].sort((a, b) => {
       if (sortConfig.key === "date") {
-        const valA = a.date.getTime();
-        const valB = b.date.getTime();
-        if (valA < valB) return sortConfig.direction === "asc" ? -1 : 1;
-        if (valA > valB) return sortConfig.direction === "asc" ? 1 : -1;
+        const valA = a.date;
+        const valB = b.date;
+
+        if (valA && !valB) return sortConfig.direction === "asc" ? -1 : 1;
+        if (!valA && valB) return sortConfig.direction === "asc" ? 1 : -1;
+
+        if (valA && valB) {
+          const timeA = valA.getTime();
+          const timeB = valB.getTime();
+          if (timeA < timeB) return sortConfig.direction === "asc" ? -1 : 1;
+          if (timeA > timeB) return sortConfig.direction === "asc" ? 1 : -1;
+        }
       } else {
         if (a[sortConfig.key] < b[sortConfig.key]) {
           return sortConfig.direction === "asc" ? -1 : 1;
@@ -739,7 +755,10 @@ const Home: NextPage = () => {
                       BALANCE (BTC)
                     </span>
                   </div>
-                  <div className="box-border flex h-[50px] w-[200px] items-center justify-between bg-[#F0F1F1] px-[12px] py-[15px] self-stretch">
+                  <div
+                    className="box-border flex h-[50px] w-[200px] cursor-pointer items-center justify-between bg-[#F0F1F1] px-[12px] py-[15px] self-stretch"
+                    onClick={() => requestSort("status")}
+                  >
                     <span
                       className="font-mono text-[18px] font-[500] leading-[21.6px] text-[#001E20]"
                       style={{ fontFamily: "'DM Mono'" }}
@@ -769,7 +788,13 @@ const Home: NextPage = () => {
                         </div>
                         <div className="box-border flex h-[50px] w-[234px] items-center px-[12px] py-[15px]">
                           <span className="font-mono text-[16px] font-normal not-italic leading-[19.2px] text-[#147C83]">
-                            {tx.date.toLocaleDateString("en-US")}
+                            {tx.date
+                              ? tx.date.toLocaleDateString("en-US", {
+                                  month: "2-digit",
+                                  day: "2-digit",
+                                  year: "numeric",
+                                })
+                              : "Pending"}
                           </span>
                         </div>
                         <div className="box-border flex h-[50px] w-[300px] items-center overflow-hidden text-ellipsis whitespace-nowrap px-[12px] py-[15px]">
