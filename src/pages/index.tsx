@@ -1110,7 +1110,11 @@ const Home: NextPage = () => {
                   <button
                     onClick={handleSignIn}
                     disabled={!email}
-                    className="flex h-[48px] w-[182px] items-center justify-center gap-2.5 rounded-[4px] bg-[#EFF4F4] px-10 py-3 disabled:cursor-not-allowed"
+                    className={`flex h-[48px] w-[182px] items-center justify-center gap-2.5 rounded-[4px] px-10 py-3 font-mono text-[16px] font-normal leading-[19.2px] disabled:cursor-not-allowed ${
+                      email
+                        ? "bg-[#147C83] text-[#F8F8F8]"
+                        : "bg-[#EFF4F4] text-black"
+                    }`}
                   >
                     Next
                   </button>

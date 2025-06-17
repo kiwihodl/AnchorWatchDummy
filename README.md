@@ -74,6 +74,10 @@ For development and testing purposes, only the following email addresses are all
 - kiwihodl@proton.me
 - rob@anchorwatch.com
 
+Once you attempt to sign in there will be an ethereal link in your terminal, open that in a new tab, keeping local host open, and then click the "this link" and it will redirect you back to local host but signed in.
+
+You can then select "ADD A BTC ADDRESS" and it will use mempool.space API's to pull the balance, display as much data as it can on the chart, and show you the transactions for that UTXO.
+
 ## Build for Production
 
 To create a production build:
