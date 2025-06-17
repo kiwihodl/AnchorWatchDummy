@@ -1,8 +1,64 @@
-import { useSession, signIn } from "next-auth/react";
-import { useState, useEffect } from "react";
-import { NextPage } from "next";
+import { type NextPage } from "next";
 import Head from "next/head";
+import { signIn, useSession } from "next-auth/react";
 import Image from "next/image";
+import { useState, useEffect, useMemo } from "react";
+import {
+  LineChart,
+  Line,
+  Tooltip,
+  ResponsiveContainer,
+  TooltipProps,
+  Area,
+} from "recharts";
+
+// Define types for the API responses
+interface Vin {
+  prevout: {
+    scriptpubkey_address: string;
+    value: number;
+  };
+}
+
+interface Vout {
+  scriptpubkey_address: string;
+  value: number;
+}
+
+interface Transaction {
+  txid: string;
+  status: {
+    confirmed: boolean;
+    block_time: number;
+  };
+  vin: Vin[];
+  vout: Vout[];
+}
+
+interface Utxo {
+  value: number;
+}
+
+interface ChartDataPoint {
+  date: string;
+  balance: number;
+  fullDate: string;
+  usdBalance: string;
+}
+
+interface ProcessedTransaction {
+  txid: string;
+  type: "SEND" | "RECEIVE";
+  date: Date;
+  amount: number;
+  balance: number;
+  status: "Completed" | "Pending";
+}
+
+interface Balance {
+  btc: number;
+  usd: number;
+}
 
 const Home: NextPage = () => {
   const { data: sessionData, status } = useSession();
@@ -10,9 +66,23 @@ const Home: NextPage = () => {
   const [error, setError] = useState("");
   const [emailSubmitted, setEmailSubmitted] = useState(false);
   const [resendCooldown, setResendCooldown] = useState(0);
-  const [selectedTime, setSelectedTime] = useState("1 D");
+  const [selectedTime, setSelectedTime] = useState("1 MO");
   const [isAddAddressPopupOpen, setIsAddAddressPopupOpen] = useState(false);
   const [btcAddress, setBtcAddress] = useState("");
+  const [currentBtcAddress, setCurrentBtcAddress] = useState<string | null>(
+    null
+  );
+  const [balance, setBalance] = useState<Balance | null>(null);
+  const [chartData, setChartData] = useState<ChartDataPoint[]>([]);
+  const [transactions, setTransactions] = useState<ProcessedTransaction[]>([]);
+  const [sortConfig, setSortConfig] = useState<{
+    key: keyof ProcessedTransaction;
+    direction: "asc" | "desc";
+  }>({ key: "date", direction: "desc" });
+  const [transactionFilter, setTransactionFilter] = useState("ALL");
+  const [currentPage, setCurrentPage] = useState(1);
+  const [isLoading, setIsLoading] = useState(false);
+  const [apiError, setApiError] = useState<string | null>(null);
 
   useEffect(() => {
     if (resendCooldown > 0) {
@@ -58,6 +128,191 @@ const Home: NextPage = () => {
       signIn("email", { email, redirect: false });
       setResendCooldown(30);
     }
+  };
+
+  const handleAddressSubmit = async () => {
+    setIsLoading(true);
+    setApiError(null);
+    setBalance(null);
+    setChartData([]);
+    setCurrentBtcAddress(null);
+    setTransactions([]);
+
+    try {
+      // Fetch transactions, UTXOs, and BTC price
+      const [txsRes, utxosRes, pricesRes] = await Promise.all([
+        fetch(`https://mempool.space/api/address/${btcAddress}/txs`),
+        fetch(`https://mempool.space/api/address/${btcAddress}/utxo`),
+        fetch(`https://mempool.space/api/v1/prices`),
+      ]);
+
+      if (!txsRes.ok) {
+        throw new Error(
+          "Failed to fetch transaction data. Please check the address and try again."
+        );
+      }
+      if (!utxosRes.ok) {
+        throw new Error(
+          "Failed to fetch UTXO data. The address may be invalid or have no unspent outputs."
+        );
+      }
+      if (!pricesRes.ok) {
+        throw new Error(
+          "Failed to fetch pricing data. Please try again later."
+        );
+      }
+
+      const txs: Transaction[] = await txsRes.json();
+      const utxos: Utxo[] = await utxosRes.json();
+      const prices = await pricesRes.json();
+      const btcPriceUsd = prices.USD;
+
+      // Calculate current balance
+      const totalSats = utxos.reduce((sum, utxo) => sum + utxo.value, 0);
+      const btcBalance = totalSats / 1_000_000_00;
+      const usdBalance = btcBalance * btcPriceUsd;
+
+      setBalance({
+        btc: btcBalance,
+        usd: usdBalance,
+      });
+
+      // Process transactions for chart data
+      const dataPoints: ChartDataPoint[] = [];
+      const confirmedTxsForChart = txs
+        .filter((tx) => tx.status.confirmed)
+        .sort((a, b) => a.status.block_time - b.status.block_time);
+
+      let currentSatBalance = 0;
+      confirmedTxsForChart.forEach((tx) => {
+        const valueIn = tx.vin.reduce(
+          (sum, vin) =>
+            vin.prevout?.scriptpubkey_address === btcAddress
+              ? sum + vin.prevout.value
+              : sum,
+          0
+        );
+        const valueOut = tx.vout.reduce(
+          (sum, vout) =>
+            vout.scriptpubkey_address === btcAddress ? sum + vout.value : sum,
+          0
+        );
+        currentSatBalance += valueOut - valueIn;
+
+        const date = new Date(tx.status.block_time * 1000);
+        const pointBalanceBtc = currentSatBalance / 1_000_00_000;
+
+        dataPoints.push({
+          date: date.toLocaleDateString("en-US", {
+            month: "short",
+            day: "2-digit",
+          }),
+          balance: pointBalanceBtc,
+          fullDate: date.toDateString().toUpperCase(),
+          usdBalance: (pointBalanceBtc * btcPriceUsd).toLocaleString("en-US", {
+            style: "currency",
+            currency: "USD",
+          }),
+        });
+      });
+
+      // Process transactions for the transaction list
+      const allTxsSorted = txs.sort(
+        (a, b) =>
+          (b.status.block_time ?? Infinity) - (a.status.block_time ?? Infinity)
+      );
+      const finalBalanceSats = utxos.reduce((sum, utxo) => sum + utxo.value, 0);
+      let runningBalanceSats = finalBalanceSats;
+
+      const processedTxs: ProcessedTransaction[] = allTxsSorted.map((tx) => {
+        const valueIn = tx.vin.reduce(
+          (sum, vin) =>
+            vin.prevout?.scriptpubkey_address === btcAddress
+              ? sum + vin.prevout.value
+              : sum,
+          0
+        );
+        const valueOut = tx.vout.reduce(
+          (sum, vout) =>
+            vout.scriptpubkey_address === btcAddress ? sum + vout.value : sum,
+          0
+        );
+        const netAmount = valueOut - valueIn;
+        const balanceAfterTx = runningBalanceSats;
+        if (tx.status.confirmed) {
+          runningBalanceSats -= netAmount;
+        }
+
+        return {
+          txid: tx.txid,
+          type: netAmount > 0 ? "RECEIVE" : "SEND",
+          date: new Date(tx.status.block_time * 1000),
+          amount: netAmount / 1_000_00_000,
+          balance: balanceAfterTx / 1_000_00_000,
+          status: tx.status.confirmed ? "Completed" : "Pending",
+        };
+      });
+
+      setTransactions(processedTxs);
+      setChartData(dataPoints);
+      setCurrentBtcAddress(btcAddress);
+      setIsLoading(false);
+      setIsAddAddressPopupOpen(false);
+    } catch (error) {
+      const errorMessage =
+        error instanceof Error ? error.message : "An unknown error occurred.";
+      setApiError(errorMessage);
+      setIsLoading(false);
+    }
+  };
+
+  const displayedTransactions = useMemo(() => {
+    let filtered = transactions;
+    if (transactionFilter !== "ALL") {
+      filtered = transactions.filter((tx) => {
+        if (transactionFilter === "SENT") return tx.type === "SEND";
+        if (transactionFilter === "RECEIVED") return tx.type === "RECEIVE";
+        return true;
+      });
+    }
+
+    const sorted = [...filtered].sort((a, b) => {
+      if (sortConfig.key === "date") {
+        const valA = a.date.getTime();
+        const valB = b.date.getTime();
+        if (valA < valB) return sortConfig.direction === "asc" ? -1 : 1;
+        if (valA > valB) return sortConfig.direction === "asc" ? 1 : -1;
+      } else {
+        if (a[sortConfig.key] < b[sortConfig.key]) {
+          return sortConfig.direction === "asc" ? -1 : 1;
+        }
+        if (a[sortConfig.key] > b[sortConfig.key]) {
+          return sortConfig.direction === "asc" ? 1 : -1;
+        }
+      }
+      return 0;
+    });
+
+    const itemsPerPage = 9;
+    const startIndex = (currentPage - 1) * itemsPerPage;
+    return sorted.slice(startIndex, startIndex + itemsPerPage);
+  }, [transactions, transactionFilter, sortConfig, currentPage]);
+
+  const totalPages = Math.ceil(
+    transactions.filter((tx) => {
+      if (transactionFilter === "ALL") return true;
+      if (transactionFilter === "SENT") return tx.type === "SEND";
+      if (transactionFilter === "RECEIVED") return tx.type === "RECEIVE";
+      return true;
+    }).length / 9
+  );
+
+  const requestSort = (key: keyof ProcessedTransaction) => {
+    let direction: "asc" | "desc" = "asc";
+    if (sortConfig.key === key && sortConfig.direction === "asc") {
+      direction = "desc";
+    }
+    setSortConfig({ key, direction });
   };
 
   if (status === "loading") {
@@ -154,11 +409,12 @@ const Home: NextPage = () => {
                     value={btcAddress}
                     onChange={(e) => setBtcAddress(e.target.value)}
                     placeholder="Enter address here"
-                    className="box-border mt-[4px] h-[50px] w-full self-stretch rounded-[4px] border border-solid border-[#F0F1F1] bg-[#F0F1F1] px-[12px] font-sans text-[18px] leading-[21.6px] tracking-[-0.09px] text-[#001E20]"
+                    className="box-border mt-[4px] h-[50px] w-full self-stretch rounded-[4px] border-none bg-[#F0F1F1] px-[12px] font-sans text-[18px] leading-[21.6px] tracking-[-0.09px] text-[#001E20] focus:outline-none focus:ring-0"
                   />
                   <p className="mt-[4px] font-sans text-[16px] font-normal leading-[19.2px] tracking-[-0.08px] text-[#00474B]">
                     46 characters maximum
                   </p>
+                  {apiError && <p className="mt-2 text-red-500">{apiError}</p>}
                 </div>
                 <div className="mt-auto flex w-full flex-col items-start gap-[16px]">
                   <div className="flex items-center gap-[10px]">
@@ -173,14 +429,17 @@ const Home: NextPage = () => {
                     />
                   </div>
                   <button
-                    disabled={!btcAddress}
+                    onClick={handleAddressSubmit}
+                    disabled={isLoading}
                     className={`flex h-[51px] w-[137px] items-center justify-center rounded-[4px] px-9 py-3 text-center font-mono text-[18px] font-normal not-italic leading-[21.6px] ${
-                      !btcAddress
+                      isLoading
+                        ? "cursor-not-allowed bg-gray-400 text-white"
+                        : !btcAddress
                         ? "cursor-not-allowed bg-[#EFF4F4] text-gray-500"
                         : "bg-[#147C83] text-[#F8F8F8]"
                     }`}
                   >
-                    Next
+                    {isLoading ? "Verifying..." : "Next"}
                   </button>
                 </div>
               </div>
@@ -204,7 +463,7 @@ const Home: NextPage = () => {
     return (
       <div className="flex h-screen flex-col bg-white">
         {/* Top Bar */}
-        <div className="flex h-[80px] items-center">
+        <div className="flex h-[80px] items-center bg-[#F0F1F1]">
           <div className="flex h-[46px] items-center gap-[32px] px-[40px] my-[17px]">
             <div className="flex h-[32px] w-[32px] items-center justify-center shadow-[0px_4px_4px_0px_rgba(0,0,0,0.25)]">
               <Image
@@ -224,40 +483,62 @@ const Home: NextPage = () => {
             </div>
           </div>
         </div>
-        {/* Bitcoin Address and Balance Bar */}
+        {/* Second Bar: Address and Balance */}
         <div
-          className="flex h-[59px] items-center justify-between border-y border-[#CDD]"
+          className="box-border flex h-[79px] w-full items-center justify-between border-y border-[#CDD] bg-white"
           style={{ padding: "10px 16px 10px 20px" }}
         >
-          {/* Bitcoin Address - Initially Empty */}
-          <div
-            style={{ fontFamily: "'DM Mono'", letterSpacing: "1.6px" }}
-            className="text-[32px] font-[500] leading-[115%] text-[#001E20]"
-          >
-            {/* Will be populated with BTC address */}
-          </div>
-          {/* Balance Information - Initially Empty */}
-          <div className="flex h-[77px] w-[599.952px] items-center justify-end gap-[20px] px-[12px]">
-            {/* Bitcoin Balance */}
-            <div className="flex items-center gap-[9px]">
-              {/* Bitcoin logo and amount will be shown when we have values */}
-              <span
-                style={{ fontFamily: "'DM Mono'", letterSpacing: "1.4px" }}
-                className="text-[28px] font-[500] leading-[115%] text-[#001E20]"
+          {/* Bitcoin Address Display */}
+          <div className="flex h-full items-center">
+            {currentBtcAddress && (
+              <h1
+                className="m-0 font-mono text-[32px] font-medium leading-[115%] tracking-[1.6px] text-[#001E20]"
+                style={{ fontFamily: "'DM Mono'" }}
               >
-                {/* Will be populated with BTC amount */}
-              </span>
-            </div>
-            {/* USD Balance */}
-            <div
-              style={{ fontFamily: "'DM Mono'" }}
-              className="text-[24px] font-normal leading-[28.8px] text-[#00474B]"
-            >
-              {/* Will be populated with USD value */}
-            </div>
+                {`${currentBtcAddress.substring(
+                  0,
+                  10
+                )}...${currentBtcAddress.substring(
+                  currentBtcAddress.length - 10
+                )}`}
+              </h1>
+            )}
           </div>
+          {/* Balance Display */}
+          {balance && (
+            <div className="flex items-center gap-[24px]">
+              {/* BTC Balance */}
+              <div className="flex items-center gap-[9px]">
+                <Image
+                  src="/sign-in-images/BitcoinLogo-tilted.svg"
+                  alt="Bitcoin Logo"
+                  width={24}
+                  height={24}
+                />
+                <p
+                  className="m-0 font-mono text-[28px] font-medium leading-[115%] tracking-[1.4px] text-[#001E20]"
+                  style={{ fontFamily: "'DM Mono'" }}
+                >
+                  {balance.btc.toFixed(8)} BTC
+                </p>
+              </div>
+              {/* USD Balance */}
+              <div className="m-0">
+                <p
+                  className="m-0 font-mono text-[24px] font-normal leading-[28.8px] text-[#00474B]"
+                  style={{ fontFamily: "'DM Mono'" }}
+                >
+                  {balance.usd.toLocaleString("en-US", {
+                    style: "currency",
+                    currency: "USD",
+                  })}{" "}
+                  USD
+                </p>
+              </div>
+            </div>
+          )}
         </div>
-        {/* Third Bar - Quick Actions */}
+        {/* Third Bar: Quick Actions */}
         <div className="flex">
           {/* Left Section - Quick Actions */}
           <div className="box-border flex h-[50px] w-[419px] flex-col items-start justify-center border-b border-[#CDD] bg-[#F0F1F1] px-[20px] py-[13px]">
@@ -287,7 +568,10 @@ const Home: NextPage = () => {
             {/* Add BTC Address Button */}
             <div className="w-full" style={{ paddingTop: "15px" }}>
               <button
-                onClick={() => setIsAddAddressPopupOpen(true)}
+                onClick={() => {
+                  setIsAddAddressPopupOpen(true);
+                  setBtcAddress("");
+                }}
                 className="flex items-center rounded-[4px] border border-[#ACC6C5] bg-white"
                 style={{
                   width: "387px",
@@ -326,7 +610,7 @@ const Home: NextPage = () => {
             >
               {/* Holdings Section */}
               <div className="flex h-[calc(50%-12px)] flex-col rounded-[4px] border border-[#CDD] bg-white">
-                <div className="box-border flex h-[50px] shrink-0 items-center gap-[15px] rounded-t-[4px] border-b border-[#CDD] bg-[#F0F1F1] px-[14px] py-[10px]">
+                <div className="flex h-[50px] shrink-0 items-center gap-[15px] rounded-t-[4px] border-b border-[#CDD] bg-[#F0F1F1] px-[14px] py-[10px]">
                   <h1
                     className="m-0 text-[20px] font-medium leading-[24px] text-[#001E20]"
                     style={{ fontFamily: "'DM Mono', monospace" }}
@@ -335,7 +619,7 @@ const Home: NextPage = () => {
                   </h1>
                 </div>
                 <div className="box-border flex h-[50px] shrink-0 items-center justify-start gap-[15px] border-b border-[#CDD] bg-white px-[14px] py-[10px]">
-                  {["1 D", "1 WK", "1 MO", "1 YR"].map((time) => (
+                  {["1 D", "1 WK", "1 MO", "3 MO", "1 YR"].map((time) => (
                     <button
                       key={time}
                       onClick={() => setSelectedTime(time)}
@@ -350,13 +634,25 @@ const Home: NextPage = () => {
                     </button>
                   ))}
                 </div>
-                <div className="flex w-full flex-grow flex-col items-center justify-center gap-[10px]">
-                  <p
-                    className="text-center text-[20px] font-medium leading-[24px] text-[#001E20]"
-                    style={{ fontFamily: "'DM Mono', monospace" }}
-                  >
-                    Add a BTC address to see holdings
-                  </p>
+                <div className="flex w-full flex-grow flex-col items-stretch justify-end">
+                  {currentBtcAddress ? (
+                    <div className="p-[24px]">
+                      <HoldingsChart
+                        key={selectedTime}
+                        data={chartData}
+                        timeRange={selectedTime}
+                      />
+                    </div>
+                  ) : (
+                    <div className="flex flex-grow items-center justify-center">
+                      <p
+                        className="text-center text-[20px] font-medium leading-[24px] text-[#001E20]"
+                        style={{ fontFamily: "'DM Mono', monospace" }}
+                      >
+                        Add a BTC address to see holdings
+                      </p>
+                    </div>
+                  )}
                 </div>
               </div>
               {/* Transactions Section */}
@@ -379,8 +675,11 @@ const Home: NextPage = () => {
                     {["ALL", "SENT", "RECEIVED"].map((filter) => (
                       <button
                         key={filter}
+                        onClick={() => setTransactionFilter(filter)}
                         className={`border-none bg-transparent font-mono text-[14px] font-normal leading-[16.8px] ${
-                          filter === "ALL" ? "text-[#001E20]" : "text-[#0E656B]"
+                          transactionFilter === filter
+                            ? "text-[#001E20]"
+                            : "text-[#0E656B]"
                         }`}
                       >
                         {filter}
@@ -393,38 +692,54 @@ const Home: NextPage = () => {
                   </button>
                 </div>
                 {/* Transaction Headers Bar */}
-                <div className="box-border flex h-[50px] items-center justify-between border-b border-[#CDD] bg-white pl-[14px]">
-                  <span
-                    className="font-mono text-[18px] font-[500] leading-[21.6px] text-[#001E20]"
-                    style={{ fontFamily: "'DM Mono'" }}
+                <div className="box-border flex h-[50px] items-center border-b border-[#CDD] bg-white">
+                  <div className="box-border flex h-[50px] w-[184px] items-center px-[12px] py-[15px]">
+                    <span
+                      className="font-mono text-[18px] font-[500] leading-[21.6px] text-[#001E20]"
+                      style={{ fontFamily: "'DM Mono'" }}
+                    >
+                      TYPE
+                    </span>
+                  </div>
+                  <div
+                    className="box-border flex h-[50px] w-[234px] cursor-pointer items-center px-[12px] py-[15px]"
+                    onClick={() => requestSort("date")}
                   >
-                    TYPE
-                  </span>
-                  <span
-                    className="font-mono text-[18px] font-[500] leading-[21.6px] text-[#001E20]"
-                    style={{ fontFamily: "'DM Mono'" }}
+                    <span
+                      className="font-mono text-[18px] font-[500] leading-[21.6px] text-[#001E20]"
+                      style={{ fontFamily: "'DM Mono'" }}
+                    >
+                      DATE
+                    </span>
+                  </div>
+                  <div className="box-border flex h-[50px] w-[300px] items-center px-[12px] py-[15px]">
+                    <span
+                      className="font-mono text-[18px] font-[500] leading-[21.6px] text-[#001E20]"
+                      style={{ fontFamily: "'DM Mono'" }}
+                    >
+                      TX ID
+                    </span>
+                  </div>
+                  <div
+                    className="box-border flex h-[50px] w-[200px] cursor-pointer items-center px-[12px] py-[15px]"
+                    onClick={() => requestSort("amount")}
                   >
-                    DATE
-                  </span>
-                  <span
-                    className="font-mono text-[18px] font-[500] leading-[21.6px] text-[#001E20]"
-                    style={{ fontFamily: "'DM Mono'" }}
-                  >
-                    LABEL
-                  </span>
-                  <span
-                    className="font-mono text-[18px] font-[500] leading-[21.6px] text-[#001E20]"
-                    style={{ fontFamily: "'DM Mono'" }}
-                  >
-                    AMOUNT (BTC)
-                  </span>
-                  <span
-                    className="font-mono text-[18px] font-[500] leading-[21.6px] text-[#001E20]"
-                    style={{ fontFamily: "'DM Mono'" }}
-                  >
-                    BALANCE (BTC)
-                  </span>
-                  <div className="flex items-center self-stretch p-[12px] gap-[10px] bg-[#F0F1F1]">
+                    <span
+                      className="font-mono text-[18px] font-[500] leading-[21.6px] text-[#001E20]"
+                      style={{ fontFamily: "'DM Mono'" }}
+                    >
+                      AMOUNT (BTC)
+                    </span>
+                  </div>
+                  <div className="box-border flex h-[50px] w-[234px] items-center px-[12px] py-[15px]">
+                    <span
+                      className="font-mono text-[18px] font-[500] leading-[21.6px] text-[#001E20]"
+                      style={{ fontFamily: "'DM Mono'" }}
+                    >
+                      BALANCE (BTC)
+                    </span>
+                  </div>
+                  <div className="box-border flex h-[50px] w-[200px] items-center justify-between bg-[#F0F1F1] px-[12px] py-[15px] self-stretch">
                     <span
                       className="font-mono text-[18px] font-[500] leading-[21.6px] text-[#001E20]"
                       style={{ fontFamily: "'DM Mono'" }}
@@ -439,15 +754,123 @@ const Home: NextPage = () => {
                     />
                   </div>
                 </div>
-                {/* Empty Transactions Message */}
-                <div className="flex flex-1 items-center justify-center">
-                  <p
-                    style={{ fontFamily: "'DM Mono'" }}
-                    className="flex-1 text-center text-[20px] font-[500] not-italic leading-[24px] text-[#001E20]"
-                  >
-                    No transactions to show
-                  </p>
+                {/* Transactions List */}
+                <div className="flex-1 overflow-y-auto">
+                  {displayedTransactions.length > 0 ? (
+                    displayedTransactions.map((tx) => (
+                      <div
+                        key={tx.txid}
+                        className="flex items-center border-b border-[#CDD]"
+                      >
+                        <div className="box-border flex h-[50px] w-[184px] items-center px-[12px] py-[15px]">
+                          <span className="font-mono text-[16px] font-normal not-italic leading-[19.2px] text-[#147C83]">
+                            {tx.type}
+                          </span>
+                        </div>
+                        <div className="box-border flex h-[50px] w-[234px] items-center px-[12px] py-[15px]">
+                          <span className="font-mono text-[16px] font-normal not-italic leading-[19.2px] text-[#147C83]">
+                            {tx.date.toLocaleDateString("en-US")}
+                          </span>
+                        </div>
+                        <div className="box-border flex h-[50px] w-[300px] items-center overflow-hidden text-ellipsis whitespace-nowrap px-[12px] py-[15px]">
+                          <span className="font-mono text-[16px] font-normal not-italic leading-[19.2px] text-[#147C83]">
+                            {tx.txid.substring(0, 25)}...
+                          </span>
+                        </div>
+                        <div className="box-border flex h-[50px] w-[200px] items-center px-[12px] py-[15px]">
+                          <span className="font-mono text-[16px] font-normal not-italic leading-[19.2px] text-[#147C83]">
+                            {tx.amount > 0 ? "+ " : "- "}
+                            {Math.abs(tx.amount).toFixed(8)}
+                          </span>
+                        </div>
+                        <div className="box-border flex h-[50px] w-[234px] items-center px-[12px] py-[15px]">
+                          <span className="font-mono text-[16px] font-normal not-italic leading-[19.2px] text-[#147C83]">
+                            {tx.balance.toFixed(8)}
+                          </span>
+                        </div>
+                        <div className="box-border flex h-[50px] w-[200px] items-center px-[12px] py-[15px]">
+                          <span
+                            className={`font-mono text-[16px] font-normal not-italic leading-[19.2px] ${
+                              tx.status === "Completed"
+                                ? "text-[#13D83E]"
+                                : "text-[#DD8500]"
+                            }`}
+                          >
+                            {tx.status}
+                          </span>
+                        </div>
+                      </div>
+                    ))
+                  ) : (
+                    <div className="flex h-full w-full items-center justify-center">
+                      <p
+                        style={{ fontFamily: "'DM Mono'" }}
+                        className="text-center text-[20px] font-[500] not-italic leading-[24px] text-[#001E20]"
+                      >
+                        No transactions to show
+                      </p>
+                    </div>
+                  )}
                 </div>
+                {/* Pagination */}
+                {totalPages > 1 && (
+                  <div className="flex h-[60px] items-center justify-center border-t border-[#CDD]">
+                    <div
+                      className="flex h-[60px] w-[353px] items-center justify-center"
+                      style={{ gap: "25px" }}
+                    >
+                      <button
+                        onClick={() =>
+                          setCurrentPage((p) => Math.max(p - 1, 1))
+                        }
+                        disabled={currentPage === 1}
+                        className="disabled:opacity-50 bg-transparent border-none p-0"
+                      >
+                        <Image
+                          src="/sign-in-images/Pagination-left.svg"
+                          alt="Previous"
+                          width={24}
+                          height={24}
+                        />
+                      </button>
+                      <div className="flex" style={{ gap: "25px" }}>
+                        {[...Array(4)].map((_, idx) => {
+                          const pageNum =
+                            currentPage + idx - Math.min(currentPage - 1, 3);
+                          if (pageNum > totalPages) return null;
+                          return (
+                            <button
+                              key={pageNum}
+                              onClick={() => setCurrentPage(pageNum)}
+                              className={`font-mono text-[18px] font-normal leading-[21.6px] bg-transparent border-none p-0 ${
+                                currentPage === pageNum
+                                  ? "text-[#001E20]"
+                                  : "text-[#147C83]"
+                              }`}
+                              style={{ fontFamily: "'DM Mono'" }}
+                            >
+                              {pageNum}
+                            </button>
+                          );
+                        })}
+                      </div>
+                      <button
+                        onClick={() =>
+                          setCurrentPage((p) => Math.min(p + 1, totalPages))
+                        }
+                        disabled={currentPage === totalPages}
+                        className="disabled:opacity-50 bg-transparent border-none p-0"
+                      >
+                        <Image
+                          src="/sign-in-images/Pagination-right.svg"
+                          alt="Next"
+                          width={24}
+                          height={24}
+                        />
+                      </button>
+                    </div>
+                  </div>
+                )}
               </div>
             </div>
           </div>
@@ -670,7 +1093,7 @@ const Home: NextPage = () => {
               </div>
 
               {/* Right Side */}
-              <div className="relative flex w-[525px] items-center justify-center border-solid border-[#B6C6C6] border-t-0 border-b-0 border-l-0 border-r-2">
+              <div className="relative flex w-[525px] items-center justify-center border-solid border-[#B6C6C6] border-2 border-l-0 border-r-2">
                 <Image
                   src="/sign-in-images/mail-illustration.png"
                   alt="Mail illustration"
@@ -687,3 +1110,195 @@ const Home: NextPage = () => {
 };
 
 export default Home;
+
+// Custom Tooltip for the Chart
+const CustomTooltip = ({ active, payload }: TooltipProps<number, string>) => {
+  if (active && payload && payload.length) {
+    const data = payload[0].payload as ChartDataPoint;
+    return (
+      <div className="inline-flex flex-col items-start justify-center gap-[17px] border border-[#E2B000] bg-[#FFFCDE] p-[12px]">
+        <div
+          className="font-mono text-[14px] font-medium leading-[16.8px] text-[#8E6F00]"
+          style={{ fontFamily: "'DM Mono'", letterSpacing: "0.1em" }}
+        >
+          {data.fullDate}
+        </div>
+        <div className="flex flex-col items-start">
+          <div
+            className="font-mono text-[14px] font-medium leading-[16.8px] text-[#B58E00]"
+            style={{ fontFamily: "'DM Mono'" }}
+          >
+            Balance
+          </div>
+          <div
+            className="font-mono text-[20px] font-medium leading-[24px] text-[#695200]"
+            style={{ fontFamily: "'DM Mono'" }}
+          >
+            {data.balance.toFixed(8)} BTC
+          </div>
+          <div
+            className="font-mono text-[14px] font-medium leading-[16.8px] text-[#8E6F00]"
+            style={{ fontFamily: "'DM Mono'" }}
+          >
+            {data.usdBalance} USD
+          </div>
+        </div>
+      </div>
+    );
+  }
+  return null;
+};
+
+// Custom Dot for the Chart
+interface CustomDotProps {
+  cx?: number;
+  cy?: number;
+}
+
+const CustomDot = ({ cx, cy }: CustomDotProps) => {
+  if (cx === undefined || cy === undefined) return null;
+  return (
+    <g>
+      <image
+        href="/sign-in-images/Chart_ellipse.svg"
+        x={cx - 8}
+        y={cy - 8}
+        width="16"
+        height="16"
+      />
+    </g>
+  );
+};
+
+// Chart Component
+const HoldingsChart = ({
+  data,
+  timeRange,
+}: {
+  data: ChartDataPoint[];
+  timeRange: string;
+}) => {
+  const getFilteredData = (
+    data: ChartDataPoint[],
+    timeRange: string
+  ): ChartDataPoint[] => {
+    const now = new Date();
+    const startDate = new Date(now);
+
+    switch (timeRange) {
+      case "1 D":
+        startDate.setDate(now.getDate() - 7);
+        break;
+      case "1 WK":
+        startDate.setDate(now.getDate() - 28);
+        break;
+      case "1 MO":
+        startDate.setMonth(now.getMonth() - 6);
+        break;
+      case "3 MO":
+        startDate.setMonth(now.getMonth() - 18);
+        break;
+      case "1 YR":
+        startDate.setFullYear(now.getFullYear() - 6);
+        break;
+      default:
+        // Default to 6 months
+        startDate.setMonth(now.getMonth() - 6);
+        break;
+    }
+    return data.filter((d) => new Date(d.fullDate) >= startDate);
+  };
+
+  const getChartLabels = (timeRange: string): string[] => {
+    const now = new Date();
+    const labels: string[] = [];
+    const numLabels = 4;
+
+    const formatDate = (
+      date: Date,
+      options: Intl.DateTimeFormatOptions
+    ): string => {
+      return date.toLocaleDateString("en-US", options);
+    };
+
+    for (let i = 0; i < numLabels; i++) {
+      const d = new Date(now);
+      const denominator = numLabels - 1;
+
+      switch (timeRange) {
+        case "1 D": // 7 days range
+          d.setDate(now.getDate() - ((denominator - i) * 7) / denominator);
+          labels.push(formatDate(d, { month: "short", day: "numeric" }));
+          break;
+        case "1 WK": // 4 weeks range
+          d.setDate(now.getDate() - ((denominator - i) * 28) / denominator);
+          labels.push(formatDate(d, { month: "short", day: "numeric" }));
+          break;
+        case "1 MO": // 6 months range
+          d.setMonth(now.getMonth() - ((denominator - i) * 6) / denominator);
+          labels.push(formatDate(d, { month: "short", year: "2-digit" }));
+          break;
+        case "3 MO": // 18 months range
+          d.setMonth(now.getMonth() - ((denominator - i) * 18) / denominator);
+          labels.push(formatDate(d, { month: "short", year: "2-digit" }));
+          break;
+        case "1 YR": // 6 years range
+          d.setFullYear(
+            now.getFullYear() - ((denominator - i) * 6) / denominator
+          );
+          labels.push(formatDate(d, { year: "numeric" }));
+          break;
+        default:
+          break;
+      }
+    }
+    return labels;
+  };
+
+  const filteredData = getFilteredData(data, timeRange);
+  const chartLabels = getChartLabels(timeRange);
+
+  return (
+    <div className="w-full">
+      <ResponsiveContainer width="100%" height={278}>
+        <LineChart
+          data={filteredData}
+          margin={{ top: 20, right: 30, left: 20, bottom: 5 }}
+        >
+          <defs>
+            <linearGradient id="balanceGradient" x1="0" y1="0" x2="0" y2="1">
+              <stop offset="7.19%" stopColor="#86D3D9" stopOpacity={0.8} />
+              <stop offset="79.68%" stopColor="#86D3D9" stopOpacity={0} />
+            </linearGradient>
+          </defs>
+          <Tooltip content={<CustomTooltip />} />
+          <Area
+            type="monotone"
+            dataKey="balance"
+            stroke="none"
+            fill="url(#balanceGradient)"
+          />
+          <Line
+            type="monotone"
+            dataKey="balance"
+            stroke="#147C83"
+            strokeWidth={2}
+            dot={<CustomDot />}
+            activeDot={{ r: 8 }}
+          />
+        </LineChart>
+      </ResponsiveContainer>
+      <div className="mt-[18px] flex w-full justify-between">
+        {chartLabels.map((label) => (
+          <div
+            key={label}
+            className="font-mono text-[16px] font-medium leading-[19.2px] text-[#002C2F]"
+            style={{ fontFamily: "'DM Mono'" }}
+          >
+            {label}
+          </div>
+        ))}
+      </div>
+    </div>
+  );
+};
