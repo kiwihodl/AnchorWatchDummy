@@ -1,36 +1,123 @@
-This is a [Next.js](https://nextjs.org) project bootstrapped with [`create-next-app`](https://nextjs.org/docs/app/api-reference/cli/create-next-app).
+# AnchorWatch Dummy - Bitcoin Transaction Viewer
+
+AnchorWatch Dummy is a modern web application that allows users to track and monitor Bitcoin transactions. With a clean and intuitive interface, users can view transaction history, monitor balances, and analyze Bitcoin holdings over time.
+
+## Features
+
+- Real-time Bitcoin balance tracking
+- Detailed transaction history with filtering options
+- Interactive holdings chart with multiple time ranges (1D, 1WK, 1MO, 3MO, 1YR)
+- Responsive design with a modern UI
+- Secure email-based authentication
+
+## Prerequisites
+
+Before you begin, ensure you have installed:
+
+- Node.js (v18 or higher)
+- npm (v9 or higher)
+- PostgreSQL (v15 or higher)
 
 ## Getting Started
 
-First, run the development server:
+1. Clone the repository:
+
+   ```bash
+   git clone https://github.com/yourusername/anchor-watch.git
+   cd anchor-watch
+   ```
+
+2. Install dependencies:
+
+   ```bash
+   npm install
+   ```
+
+3. Set up your environment variables:
+   Create a `.env` file in the root directory with the following variables:
+
+   ```env
+   # Database
+   DATABASE_URL="postgresql://your-username:your-password@localhost:5432/anchorwatch"
+
+   # Next Auth
+   NEXTAUTH_SECRET="your-nextauth-secret"
+   NEXTAUTH_URL="http://localhost:3000"
+
+   # Email (SMTP)
+   EMAIL_SERVER_HOST="your-smtp-host"
+   EMAIL_SERVER_PORT="your-smtp-port"
+   EMAIL_SERVER_USER="your-smtp-username"
+   EMAIL_SERVER_PASSWORD="your-smtp-password"
+   EMAIL_FROM="noreply@yourdomain.com"
+   ```
+
+4. Set up the database:
+
+   ```bash
+   npm run db:generate
+   npm run db:migrate
+   ```
+
+5. Run the development server:
+
+   ```bash
+   npm run dev
+   ```
+
+6. Open [http://localhost:3000](http://localhost:3000) in your browser.
+
+## Authentication
+
+For development and testing purposes, only the following email addresses are allowed to sign in:
+
+- kiwihodl@proton.me
+- rob@anchorwatch.com
+
+## Build for Production
+
+To create a production build:
 
 ```bash
-npm run dev
-# or
-yarn dev
-# or
-pnpm dev
-# or
-bun dev
+npm run build
 ```
 
-Open [http://localhost:3000](http://localhost:3000) with your browser to see the result.
+To start the production server:
 
-You can start editing the page by modifying `app/page.tsx`. The page auto-updates as you edit the file.
+```bash
+npm run start
+```
 
-This project uses [`next/font`](https://nextjs.org/docs/app/building-your-application/optimizing/fonts) to automatically optimize and load [Geist](https://vercel.com/font), a new font family for Vercel.
+## Technology Stack
 
-## Learn More
+- **Frontend**: Next.js, React, TailwindCSS, Recharts
+- **Backend**: Next.js API routes, tRPC
+- **Authentication**: NextAuth.js
+- **Database**: PostgreSQL with Drizzle ORM
+- **Email**: Nodemailer
+- **API Integration**: Mempool.space API for Bitcoin data
 
-To learn more about Next.js, take a look at the following resources:
+## Project Structure
 
-- [Next.js Documentation](https://nextjs.org/docs) - learn about Next.js features and API.
-- [Learn Next.js](https://nextjs.org/learn) - an interactive Next.js tutorial.
+```
+anchor-watch/
+├── src/
+│   ├── pages/          # Next.js pages
+│   ├── components/     # React components
+│   ├── server/        # Server-side code and API routes
+│   └── styles/        # Global styles and Tailwind config
+├── public/            # Static assets
+└── drizzle/          # Database migrations and schema
+```
 
-You can check out [the Next.js GitHub repository](https://github.com/vercel/next.js) - your feedback and contributions are welcome!
+## Development Notes
 
-## Deploy on Vercel
+- The application uses the Mempool.space API for Bitcoin transaction data
+- TailwindCSS is used for styling with custom configuration
+- The chart component uses Recharts for data visualization
+- Authentication is handled through NextAuth.js with email provider
+- Database migrations are managed with Drizzle ORM
 
-The easiest way to deploy your Next.js app is to use the [Vercel Platform](https://vercel.com/new?utm_medium=default-template&filter=next.js&utm_source=create-next-app&utm_campaign=create-next-app-readme) from the creators of Next.js.
+## Contributing
 
-Check out our [Next.js deployment documentation](https://nextjs.org/docs/app/building-your-application/deploying) for more details.
+Please read [CONTRIBUTING.md](CONTRIBUTING.md) for details on our code of conduct and the process for submitting pull requests.
